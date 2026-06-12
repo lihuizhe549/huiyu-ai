@@ -87,6 +87,12 @@
       <span id="hintText" style="color:#8892a8;">等待检测...</span>
     </div>
 
+    <!-- 实时分数 -->
+    <div style="text-align:center;padding:6px 0;">
+      <span id="scoreNum" style="font-size:32px;font-weight:700;color:#fff;">--</span>
+      <span style="font-size:14px;color:#8892a8;"> 分</span>
+    </div>
+
     <!-- 关节角度网格 -->
     <div class="bp-scroll">
       <div class="joint-grid" id="jointGrid"></div>
@@ -216,23 +222,22 @@ const App = {
     if (!this.isTraining) return;
     this._frameCount++;
 
-    let angles;
+    let angles, landmarks;
     if (this.demoMode && results._demoAngles) {
       angles = results._demoAngles;
     } else {
-      const lm = results.poseLandmarks;
-      if (!lm) return;
+      landmarks = results.poseLandmarks;
+      if (!landmarks) return;
       // 过滤无人
       let valid = 0;
-      [11,12,23,24].forEach(i => { if (lm[i] && lm[i].visibility > 0.5) valid++; });
+      [11,12,23,24].forEach(i => { if (landmarks[i] && landmarks[i].visibility > 0.5) valid++; });
       if (valid < 2) {
-        el('scoreNum') && (el('scoreNum').textContent = '--');
+        el('scoreNum').textContent = '--';
         el('hintText').textContent = '未检测到人体，请站到镜头前';
         el('hintRow').style.borderLeftColor = '#9E9E9E';
-        if (this._canvasCtx || Feedback.ctx) Feedback._drawSkeleton(lm);
         return;
       }
-      angles = AngleCalc.getAll(lm);
+      angles = AngleCalc.getAll(landmarks);
       if (!angles) return;
 
       if (this._frameCount % 5 === 0) {
@@ -247,7 +252,41 @@ const App = {
     this.scores.push(ev.score);
     this.session.validFrames++;
 
-    Feedback.update(results.poseLandmarks, angles, this.currentAction, ev);
+    // 更新UI：底部面板的分数、提示、关节角度
+    el('scoreNum').textContent = ev.score;
+    el('scoreNum').style.color = ev.overallLevel === 'green' ? '#4CAF50' : (ev.overallLevel === 'red' ? '#F44336' : '#FF9800');
+
+    // 提示
+    const action = ActionTemplates.get(this.currentAction);
+    let worst = null, worstDev = 0;
+    for (const [jn, jc] of Object.entries(action.joints)) {
+      const ad = angles[jn];
+      if (ad) {
+        const dev = Math.abs(ad.angle - jc.standard);
+        if (dev > jc.tolerance * 0.6 && dev > worstDev) { worst = { name: jc.label, angle: ad.angle, std: jc.standard, tol: jc.tolerance, diff: Math.round(ad.angle - jc.standard) }; worstDev = dev; }
+      }
+    }
+    if (worst) {
+      el('hintText').textContent = `${worst.name}偏差${Math.abs(worst.diff)}° (${worst.angle}°, 标准${worst.std}°±${worst.tol}°)`;
+      el('hintText').style.color = worstDev > worst.tol ? '#F44336' : '#FF9800';
+      el('hintRow').style.borderLeftColor = worstDev > worst.tol ? '#F44336' : '#FF9800';
+    } else {
+      el('hintText').textContent = '动作规范，继续保持！';
+      el('hintText').style.color = '#4CAF50';
+      el('hintRow').style.borderLeftColor = '#4CAF50';
+    }
+
+    // 关节角度
+    let gridHtml = '';
+    for (const [jn, jc] of Object.entries(action.joints)) {
+      const ad = angles[jn];
+      const val = ad ? ad.angle+'°' : '--°';
+      const dev = ad ? Math.abs(ad.angle - jc.standard) : 999;
+      const color = dev <= jc.tolerance*0.6 ? '#4CAF50' : (dev <= jc.tolerance ? '#FF9800' : '#F44336');
+      gridHtml += `<div class="joint-cell"><span class="jc-label">${jc.label}</span><span class="jc-value" style="color:${color}">${val}</span></div>`;
+    }
+    el('jointGrid').innerHTML = gridHtml;
+
     el('statusText').textContent = (this.demoMode ? '演示' : '检测') + '中 (' + this._frameCount + '帧)';
   },
 
