@@ -135,7 +135,7 @@ const App = {
   scores: [],
   angleSum: {},
   session: null,
-  _facingMode: 'user',
+  _facingMode: 'environment',  // 默认后置摄像头
   _timer: null,
   _frameCount: 0,
 
@@ -151,6 +151,10 @@ const App = {
     el('loadingOverlay').style.display = 'none';
     el('statusText').textContent = ready ? '就绪，请开始训练' : '摄像头未就绪';
     el('btnStart').disabled = !ready;
+    // 默认后置摄像头（不镜像）
+    this.video.style.transform = 'scaleX(1)';
+    this.canvas.style.transform = 'scaleX(1)';
+    el('flipBtn').textContent = '🔙';
   },
 
   selectAction(el) {
@@ -173,26 +177,28 @@ const App = {
 
     el('btnModeToggle').textContent = this.demoMode ? '🎮' : '📷';
     el('flipBtn').style.display = this.demoMode ? 'none' : '';
+    el('flipBtn').textContent = '🔙';
     el('statusText').textContent = this.demoMode ? '演示模式已就绪' : '就绪，请开始训练';
   },
 
   toggleCamera() {
     this._facingMode = this._facingMode === 'user' ? 'environment' : 'user';
+    const isFront = this._facingMode === 'user';
     // 如果正在训练，重启摄像头
     if (this.isTraining) {
       PoseEngine.stop();
       PoseEngine.start(this.video, (r) => this._onFrame(r), () => {}, this._facingMode).then(c => {
         this.camera = c;
-        // 翻转镜像（前置镜像，后置不镜像）
-        const mirror = this._facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+        const mirror = isFront ? 'scaleX(-1)' : 'scaleX(1)';
         this.video.style.transform = mirror;
         this.canvas.style.transform = mirror;
+        el('flipBtn').textContent = isFront ? '🤳' : '🔙';
       });
     } else {
-      // 未训练时只改预览镜像
-      const mirror = this._facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+      const mirror = isFront ? 'scaleX(-1)' : 'scaleX(1)';
       this.video.style.transform = mirror;
       this.canvas.style.transform = mirror;
+      el('flipBtn').textContent = isFront ? '🤳' : '🔙';
     }
   },
 
