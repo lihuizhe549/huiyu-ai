@@ -342,6 +342,66 @@ const App = {
     el('jointGrid').innerHTML = gridHtml;
 
     el('statusText').textContent = (this.demoMode ? '演示' : '检测') + '中 (' + this._frameCount + '帧)';
+
+    // 在摄像头上绘制骨架+角度标签
+    this._drawOnCamera(landmarks || results.poseLandmarks, angles);
+  },
+
+  /** 在Canvas上绘制骨架+角度标签 */
+  _drawOnCamera(landmarks, angles) {
+    if (!this.canvas || !landmarks) return;
+    const ctx = this.canvas.getContext('2d');
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    if (!landmarks) return;
+
+    // 骨架连线
+    const connections = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 2;
+    for (const [i, j] of connections) {
+      const a = landmarks[i], b = landmarks[j];
+      if (a && b && a.visibility > 0.5 && b.visibility > 0.5) {
+        ctx.beginPath(); ctx.moveTo(a.x * w, a.y * h); ctx.lineTo(b.x * w, b.y * h);
+        ctx.strokeStyle = '#00E5FF'; ctx.stroke();
+      }
+    }
+    // 关键点
+    for (const lm of landmarks) {
+      if (lm && lm.visibility > 0.5) {
+        ctx.beginPath(); ctx.arc(lm.x * w, lm.y * h, 3, 0, 2 * Math.PI);
+        ctx.fillStyle = '#FF6B6B'; ctx.fill();
+      }
+    }
+
+    // 角度标签
+    if (!angles || !this.currentAction) return;
+    const action = ActionTemplates.get(this.currentAction);
+    if (!action) return;
+    const labelPos = {
+      rightElbow: () => landmarks[14] ? { x: landmarks[14].x * w, y: landmarks[14].y * h - 16 } : null,
+      rightShoulder: () => landmarks[12] ? { x: landmarks[12].x * w, y: landmarks[12].y * h - 16 } : null,
+      rightHip: () => landmarks[24] ? { x: landmarks[24].x * w, y: landmarks[24].y * h - 16 } : null,
+      rightKnee: () => landmarks[26] ? { x: landmarks[26].x * w, y: landmarks[26].y * h - 16 } : null,
+      trunkRotation: () => landmarks[11] && landmarks[12] ? { x: ((landmarks[11].x + landmarks[12].x) / 2) * w, y: ((landmarks[11].y + landmarks[12].y) / 2) * h - 30 } : null,
+      trunkLean: () => landmarks[23] && landmarks[24] ? { x: ((landmarks[23].x + landmarks[24].x) / 2) * w, y: ((landmarks[23].y + landmarks[24].y) / 2) * h + 20 } : null
+    };
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 4;
+    for (const [jn, jc] of Object.entries(action.joints)) {
+      const ad = angles[jn];
+      if (!ad) continue;
+      const pos = labelPos[jn] ? labelPos[jn]() : null;
+      if (!pos) continue;
+      const dev = Math.abs(ad.angle - jc.standard);
+      const color = dev <= jc.tolerance * 0.6 ? '#4CAF50' : (dev <= jc.tolerance ? '#FF9800' : '#F44336');
+      ctx.fillStyle = color;
+      ctx.fillText(`${jc.label}: ${ad.angle}°`, pos.x, pos.y);
+    }
+    ctx.shadowBlur = 0;
   },
 
   async stopTraining() {
