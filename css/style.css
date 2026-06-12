@@ -64,7 +64,16 @@ html,body{height:100%;overflow:hidden;background:#000;color:#e0e6f0;font-family:
 .jc-label{font-size:10px;color:#8892a8}
 .jc-value{font-size:15px;font-weight:700}
 
-/* ===== 加载 ===== */
+/* ===== 授权弹窗 ===== */
+.perm-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:#0a0e1a;display:flex;align-items:center;justify-content:center;z-index:300;padding:20px}
+.perm-card{text-align:center;max-width:280px}
+.perm-icon{font-size:64px;display:block;margin-bottom:16px}
+.perm-title{font-size:20px;font-weight:700;color:#fff;margin-bottom:8px}
+.perm-desc{font-size:14px;color:#8892a8;margin-bottom:24px;line-height:1.6}
+.perm-btn{display:block;width:100%;padding:16px 0;border-radius:14px;font-size:17px;font-weight:700;color:#fff;background:#1a73e8;border:none;box-shadow:0 4px 20px rgba(26,115,232,0.4);cursor:pointer}
+.perm-btn:active{transform:scale(0.97)}
+
+/* 加载 */
 .loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:#0a0e1a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100}
 .loading-spinner{width:40px;height:40px;border:3px solid #1e2a45;border-top-color:#4FC3F7;border-radius:50%;animation:spin 0.8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
