@@ -257,11 +257,22 @@ const App = {
       this._previewStream = null;
     }
 
+    // 释放预览流（让PoseEngine接管）
+    if (this._previewStream) {
+      this._previewStream.getTracks().forEach(t => t.stop());
+      this._previewStream = null;
+    }
+
     if (this.demoMode) {
       PoseSimulator.setAction(this.currentAction);
       this.camera = await PoseSimulator.start(this.video, (r) => this._onFrame(r));
     } else {
-      this.camera = await PoseEngine.start(this.video, (r) => this._onFrame(r), () => {}, this._facingMode);
+      // 重新获取一次流给PoseEngine（复用已授权状态，不会二次弹窗）
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: this._facingMode, width: 640, height: 480 },
+        audio: false
+      });
+      this.camera = await PoseEngine.start(this.video, (r) => this._onFrame(r), () => {}, this._facingMode, stream);
     }
     if (!this.camera) { alert('启动失败，请确认摄像头权限'); return; }
 
