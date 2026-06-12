@@ -48,12 +48,12 @@ function init() {
       description: '考察上肢鞭打与下肢蹬转的协调配合',
       ref: 'Kumar(2024)[1]; 郅季炘(2018)[4]',
       joints: {
-        rightElbow:     { standard: 156, tolerance: 5,  label: '右肘角', desc: '击球点肘关节角度[1]' },
-        rightShoulder:  { standard: 133, tolerance: 6,  label: '右肩角', desc: '击球点肩关节角度[1]' },
-        rightHip:       { standard: 60,  tolerance: 15, label: '右髋角', desc: '转髋幅度（推估）' },
-        rightKnee:      { standard: 149, tolerance: 9,  label: '右膝角', desc: '下肢蹬伸角度[1]' },
-        trunkRotation:  { standard: 45,  tolerance: 15, label: '转体角', desc: '躯干旋转幅度' },
-        trunkLean:      { standard: 10,  tolerance: 8,  label: '躯干倾角', desc: '身体倾斜角度' }
+        rightElbow:     { standard: 156, tolerance: 15, label: '右肘角', desc: '击球点肘关节角度' },
+        rightShoulder:  { standard: 133, tolerance: 18, label: '右肩角', desc: '击球点肩关节角度' },
+        rightHip:       { standard: 60,  tolerance: 20, label: '右髋角', desc: '转髋幅度' },
+        rightKnee:      { standard: 149, tolerance: 18, label: '右膝角', desc: '下肢蹬伸角度' },
+        trunkRotation:  { standard: 45,  tolerance: 20, label: '转体角', desc: '躯干旋转幅度' },
+        trunkLean:      { standard: 10,  tolerance: 12, label: '躯干倾角', desc: '身体倾斜角度' }
       },
       keyJoints: ['rightElbow', 'rightShoulder', 'rightHip', 'rightKnee', 'trunkRotation']
     },
@@ -110,12 +110,12 @@ function init() {
       description: '检验躯干扭转带动大臂的连贯性',
       ref: 'Kumar(2024)[1]; Tang(1995)[5]; Ramasamy(2021)[2]',
       joints: {
-        rightElbow:     { standard: 150, tolerance: 10, label: '右肘角', desc: '击球点肘关节角度[1][2]' },
-        rightShoulder:  { standard: 133, tolerance: 8,  label: '右肩角', desc: '击球点肩关节角度[1]' },
-        rightHip:       { standard: 65,  tolerance: 15, label: '右髋角', desc: '转髋幅度（推估）' },
-        rightKnee:      { standard: 148, tolerance: 10, label: '右膝角', desc: '起跳蹬伸角度[1]' },
-        trunkRotation:  { standard: 50,  tolerance: 15, label: '转体角', desc: '躯干旋转幅度' },
-        trunkLean:      { standard: 15,  tolerance: 8,  label: '躯干倾角', desc: '身体前倾角度' }
+        rightElbow:     { standard: 150, tolerance: 18, label: '右肘角', desc: '击球点肘关节角度' },
+        rightShoulder:  { standard: 133, tolerance: 20, label: '右肩角', desc: '击球点肩关节角度' },
+        rightHip:       { standard: 65,  tolerance: 20, label: '右髋角', desc: '转髋幅度' },
+        rightKnee:      { standard: 148, tolerance: 18, label: '右膝角', desc: '起跳蹬伸角度' },
+        trunkRotation:  { standard: 50,  tolerance: 20, label: '转体角', desc: '躯干旋转幅度' },
+        trunkLean:      { standard: 15,  tolerance: 12, label: '躯干倾角', desc: '身体前倾角度' }
       },
       keyJoints: ['rightElbow', 'rightShoulder', 'rightHip', 'rightKnee', 'trunkRotation']
     }
