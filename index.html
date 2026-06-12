@@ -150,8 +150,7 @@ const App = {
   async init() {
     this.video = el('video');
     this.canvas = el('poseCanvas');
-    this.canvas.width = 640; this.canvas.height = 480;
-    Feedback.init(this.canvas, { hintEl: el('hintText'), infoEl: el('jointGrid'), width: 640, height: 480 });
+    this.canvas.width = 960; this.canvas.height = 720;
     await DataRecorder.openDB();
     this.engine = PoseEngine;
 
@@ -162,10 +161,10 @@ const App = {
     el('flipBtn').textContent = '🔙';
   },
 
-  /** 用户点击"允许摄像头"后调用 */
+  /** 用户点击后打开摄像头并直接开始训练 */
   async requestCamera() {
     el('loadingOverlay').style.display = 'flex';
-    el('loadingText').textContent = '正在打开摄像头...';
+    el('loadingText').textContent = '开启摄像头...';
     el('permOverlay').style.display = 'none';
 
     try {
@@ -176,16 +175,13 @@ const App = {
       this.video.srcObject = stream;
       await this.video.play();
       this._previewStream = stream;
-      this.video.style.transform = 'scaleX(1)';
-      this.canvas.style.transform = 'scaleX(1)';
       el('loadingOverlay').style.display = 'none';
-      el('statusText').textContent = '就绪，请开始训练';
+
+      // 直接开始训练（只需点一次）
+      this.startTraining();
     } catch(e) {
       el('loadingOverlay').style.display = 'none';
-      // 拒绝授权时显示模拟提示
       el('permOverlay').style.display = 'flex';
-      el('permOverlay').querySelector('.perm-desc').textContent = '需要在浏览器设置中允许摄像头权限才能使用';
-      el('permOverlay').querySelector('.perm-btn').textContent = '重试';
     }
   },
 
@@ -257,22 +253,13 @@ const App = {
       this._previewStream = null;
     }
 
-    // 释放预览流（让PoseEngine接管）
-    if (this._previewStream) {
-      this._previewStream.getTracks().forEach(t => t.stop());
-      this._previewStream = null;
-    }
-
     if (this.demoMode) {
       PoseSimulator.setAction(this.currentAction);
       this.camera = await PoseSimulator.start(this.video, (r) => this._onFrame(r));
     } else {
-      // 重新获取一次流给PoseEngine（复用已授权状态，不会二次弹窗）
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: this._facingMode, width: 640, height: 480 },
-        audio: false
-      });
-      this.camera = await PoseEngine.start(this.video, (r) => this._onFrame(r), () => {}, this._facingMode, stream);
+      // 把预览流直接给PoseEngine，不需要重新获取权限
+      this.camera = await PoseEngine.start(this.video, (r) => this._onFrame(r), () => {}, this._facingMode, this._previewStream || undefined);
+      this._previewStream = null;
     }
     if (!this.camera) { alert('启动失败，请确认摄像头权限'); return; }
 
@@ -362,8 +349,8 @@ const App = {
   _drawOnCamera(landmarks, angles) {
     if (!this.canvas || !landmarks) return;
     const ctx = this.canvas.getContext('2d');
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    const w = this.canvas.width || 960;
+    const h = this.canvas.height || 720;
     ctx.clearRect(0, 0, w, h);
     if (!landmarks) return;
 
@@ -422,10 +409,7 @@ const App = {
     el('bottomGroup').style.display = 'flex';
     el('bottomPanel').style.display = 'none';
     if (!this.demoMode) el('flipBtn').style.display = '';
-    el('statusText').textContent = '已停止';
-
-    // 恢复摄像头预览
-    this._restorePreview();
+    el('statusText').textContent = '已停止 · 点开始重新训练';
 
     const avgScore = this.scores.length > 0 ? Math.round(this.scores.reduce((a,b)=>a+b,0)/this.scores.length) : 0;
     const duration = Math.round((Date.now() - this.session.startTime)/1000);
@@ -457,25 +441,7 @@ const App = {
     el('reportModal').style.display = 'flex';
   },
 
-  closeReport() { el('reportModal').style.display = 'none'; },
-
-  async _restorePreview() {
-    // 恢复摄像头预览（训练结束后继续显示画面）
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: this._facingMode, width: 640, height: 480 },
-        audio: false
-      });
-      this.video.srcObject = stream;
-      await this.video.play();
-      this._previewStream = stream;
-      const mirror = this._facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
-      this.video.style.transform = mirror;
-      this.canvas.style.transform = mirror;
-    } catch(e) {
-      console.warn('恢复预览失败:', e);
-    }
-  }
+  closeReport() { el('reportModal').style.display = 'none'; }
 };
 
 document.addEventListener('DOMContentLoaded', () => App.init());
