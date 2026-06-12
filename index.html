@@ -129,6 +129,7 @@ const App = {
   scores: [],
   angleSum: {},
   session: null,
+  _facingMode: 'user',
   _timer: null,
   _frameCount: 0,
 
@@ -170,8 +171,23 @@ const App = {
   },
 
   toggleCamera() {
-    this.video.style.transform = this.video.style.transform === 'scaleX(1)' ? 'scaleX(-1)' : 'scaleX(1)';
-    this.canvas.style.transform = this.canvas.style.transform === 'scaleX(1)' ? 'scaleX(-1)' : 'scaleX(1)';
+    this._facingMode = this._facingMode === 'user' ? 'environment' : 'user';
+    // 如果正在训练，重启摄像头
+    if (this.isTraining) {
+      PoseEngine.stop();
+      PoseEngine.start(this.video, (r) => this._onFrame(r), () => {}, this._facingMode).then(c => {
+        this.camera = c;
+        // 翻转镜像（前置镜像，后置不镜像）
+        const mirror = this._facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+        this.video.style.transform = mirror;
+        this.canvas.style.transform = mirror;
+      });
+    } else {
+      // 未训练时只改预览镜像
+      const mirror = this._facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+      this.video.style.transform = mirror;
+      this.canvas.style.transform = mirror;
+    }
   },
 
   async startTraining() {
@@ -185,7 +201,7 @@ const App = {
       PoseSimulator.setAction(this.currentAction);
       this.camera = await PoseSimulator.start(this.video, (r) => this._onFrame(r));
     } else {
-      this.camera = await PoseEngine.start(this.video, (r) => this._onFrame(r), () => {});
+      this.camera = await PoseEngine.start(this.video, (r) => this._onFrame(r), () => {}, this._facingMode);
     }
     if (!this.camera) { alert('启动失败，请确认摄像头权限'); return; }
 
