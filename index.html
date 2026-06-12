@@ -6,7 +6,6 @@
   <meta name="theme-color" content="#0a0e1a">
   <title>彗羽AI - 实时动作识别</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -206,21 +205,28 @@ const App = {
   toggleCamera() {
     this._facingMode = this._facingMode === 'user' ? 'environment' : 'user';
     const isFront = this._facingMode === 'user';
-    // 如果正在训练，重启摄像头
+    const mirror = isFront ? 'scaleX(-1)' : 'scaleX(1)';
+
     if (this.isTraining) {
-      PoseEngine.stop();
-      PoseEngine.start(this.video, (r) => this._onFrame(r), () => {}, this._facingMode).then(c => {
-        this.camera = c;
-        const mirror = isFront ? 'scaleX(-1)' : 'scaleX(1)';
+      // 训练中热切换摄像头
+      PoseEngine.switchCamera(this._facingMode).then(ok => {
+        if (ok) {
+          this.video.style.transform = mirror;
+          this.canvas.style.transform = mirror;
+          el('flipBtn').textContent = isFront ? '🤳' : '🔙';
+        }
+      });
+    } else {
+      // 未训练时重新获取预览
+      if (this._previewStream) { this._previewStream.getTracks().forEach(t => t.stop()); }
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: this._facingMode, width: 640, height: 480 }, audio: false }).then(stream => {
+        this._previewStream = stream;
+        this.video.srcObject = stream;
+        this.video.play();
         this.video.style.transform = mirror;
         this.canvas.style.transform = mirror;
         el('flipBtn').textContent = isFront ? '🤳' : '🔙';
       });
-    } else {
-      const mirror = isFront ? 'scaleX(-1)' : 'scaleX(1)';
-      this.video.style.transform = mirror;
-      this.canvas.style.transform = mirror;
-      el('flipBtn').textContent = isFront ? '🤳' : '🔙';
     }
   },
 
