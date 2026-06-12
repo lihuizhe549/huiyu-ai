@@ -15,13 +15,12 @@
   <p class="loading-text" id="loadingText">初始化中...</p>
 </div>
 
-<!-- 授权引导弹窗 -->
+<!-- 启动按钮（点击即请求摄像头+开始预览） -->
 <div id="permOverlay" class="perm-overlay">
   <div class="perm-card">
-    <div class="perm-icon">📹</div>
-    <h2 class="perm-title">彗羽AI 需要摄像头权限</h2>
-    <p class="perm-desc">用于实时姿态识别，您的画面不会被存储或上传</p>
-    <button class="perm-btn" id="permBtn" onclick="App.requestCamera()">允许使用摄像头</button>
+    <div class="perm-icon">🏸</div>
+    <button class="perm-btn" id="permBtn" onclick="App.requestCamera()">开启摄像头训练</button>
+    <p class="perm-desc">画面仅用于实时姿态识别，不上传不存储</p>
   </div>
 </div>
 
