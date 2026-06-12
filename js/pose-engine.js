@@ -33,7 +33,7 @@ const PoseEngine = {
     }
   },
 
-  async start(videoEl, onResults, onError, facingMode) {
+  async start(videoEl, onResults, onError, facingMode, existingStream) {
     if (this.isRunning) {
       this.stop();
     }
@@ -47,11 +47,16 @@ const PoseEngine = {
     }
 
     try {
-      // 使用原生getUserMedia获取摄像头
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: this._facingMode, width: 640, height: 480 },
-        audio: false
-      });
+      let stream;
+      if (existingStream) {
+        // 复用已有流，不再请求权限
+        stream = existingStream;
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: this._facingMode, width: 640, height: 480 },
+          audio: false
+        });
+      }
       this._stream = stream;
       videoEl.srcObject = stream;
       await videoEl.play();
