@@ -72,7 +72,7 @@ const PoseEngine = {
    * @param {Function} onError - 错误回调 (err)
    * @returns {Promise<Camera|null>} Camera实例
    */
-  async start(videoEl, onResults, onError) {
+  async start(videoEl, onResults, onError, facingMode) {
     if (this.isRunning) {
       console.warn('[PoseEngine] 已在运行中');
       return null;
@@ -95,6 +95,7 @@ const PoseEngine = {
             await this.pose.send({ image: videoEl });
           }
         },
+        facingMode: facingMode || 'user',
         width: 640,
         height: 480
       });
