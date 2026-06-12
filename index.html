@@ -10,9 +10,19 @@
 </head>
 <body>
 
-<div id="loadingOverlay" class="loading-overlay">
+<div id="loadingOverlay" class="loading-overlay" style="display:none">
   <div class="loading-spinner"></div>
-  <p class="loading-text" id="loadingText">正在初始化姿态检测引擎...</p>
+  <p class="loading-text" id="loadingText">初始化中...</p>
+</div>
+
+<!-- 授权引导弹窗 -->
+<div id="permOverlay" class="perm-overlay">
+  <div class="perm-card">
+    <div class="perm-icon">📹</div>
+    <h2 class="perm-title">彗羽AI 需要摄像头权限</h2>
+    <p class="perm-desc">用于实时姿态识别，您的画面不会被存储或上传</p>
+    <button class="perm-btn" id="permBtn" onclick="App.requestCamera()">允许使用摄像头</button>
+  </div>
 </div>
 
 <!-- ===== 全屏封面（和小程序一模一样） ===== -->
@@ -146,20 +156,20 @@ const App = {
     await DataRecorder.openDB();
     this.engine = PoseEngine;
 
-    el('statusText').textContent = '正在启动摄像头...';
+    // 预加载MediaPipe（静默进行）
+    PoseEngine.init();
 
-    // 先加载MediaPipe
-    const ready = await PoseEngine.init();
-    if (!ready) {
-      el('loadingOverlay').style.display = 'none';
-      el('statusText').textContent = '摄像头未就绪';
-      el('btnStart').disabled = true;
-      return;
-    }
+    el('statusText').textContent = '就绪，请开始训练';
+    el('flipBtn').textContent = '🔙';
+  },
 
-    // 立即打开摄像头（只显示画面，不启动识别）
+  /** 用户点击"允许摄像头"后调用 */
+  async requestCamera() {
+    el('loadingOverlay').style.display = 'flex';
+    el('loadingText').textContent = '正在打开摄像头...';
+    el('permOverlay').style.display = 'none';
+
     try {
-      // 用getUserMedia直接打开摄像头预览
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: 640, height: 480 },
         audio: false
@@ -169,13 +179,15 @@ const App = {
       this._previewStream = stream;
       this.video.style.transform = 'scaleX(1)';
       this.canvas.style.transform = 'scaleX(1)';
+      el('loadingOverlay').style.display = 'none';
+      el('statusText').textContent = '就绪，请开始训练';
     } catch(e) {
-      console.warn('摄像头预览启动失败:', e);
+      el('loadingOverlay').style.display = 'none';
+      // 拒绝授权时显示模拟提示
+      el('permOverlay').style.display = 'flex';
+      el('permOverlay').querySelector('.perm-desc').textContent = '需要在浏览器设置中允许摄像头权限才能使用';
+      el('permOverlay').querySelector('.perm-btn').textContent = '重试';
     }
-
-    el('loadingOverlay').style.display = 'none';
-    el('statusText').textContent = '就绪，请开始训练';
-    el('flipBtn').textContent = '🔙';
   },
 
   selectAction(el) {
