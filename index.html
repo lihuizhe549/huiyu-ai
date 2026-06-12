@@ -4,531 +4,280 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0a0e1a">
-  <title>羽毛球AI训练 - 多练</title>
+  <title>彗羽AI - 实时动作识别</title>
   <link rel="stylesheet" href="css/style.css">
-  <!-- MediaPipe CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
-  <!-- 加载遮罩 -->
-  <div id="loadingOverlay" class="loading-overlay">
-    <div class="loading-spinner"></div>
-    <p class="loading-text" id="loadingText">正在初始化姿态检测引擎...</p>
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="loading-spinner"></div>
+  <p class="loading-text" id="loadingText">正在初始化姿态检测引擎...</p>
+</div>
+
+<!-- ===== 全屏封面（和小程序一模一样） ===== -->
+<div class="page">
+
+  <!-- 演示模式提示条 -->
+  <div id="demoBanner" class="demo-banner" style="display:none">
+    🎮 演示模式 — 使用模拟姿态数据展示全部功能
   </div>
 
-  <!-- 主容器 -->
-  <div class="app-container">
+  <!-- 全屏摄像头/演示区域 -->
+  <div class="fullscreen-video">
+    <!-- 摄像头 -->
+    <video id="video" playsinline class="camera-full"></video>
+    <!-- 演示占位 -->
+    <div id="demoPlaceholder" class="demo-placeholder" style="display:none">
+      <span class="demo-icon-text">🏸</span>
+      <span class="demo-sub-text">演示模式</span>
+    </div>
+    <!-- 骨架画布 -->
+    <canvas id="poseCanvas" class="pose-canvas-full"></canvas>
 
-    <!-- 顶部栏 -->
-    <header class="app-header">
-      <div class="app-title">
-        🏸 羽毛球AI训练
-        <span class="badge">v1.0</span>
+    <!-- ===== 顶部栏 ===== -->
+    <div class="overlay-top">
+      <div class="top-left">
+        <span class="icon-btn" id="btnModeToggle" onclick="App.toggleMode()">📷</span>
       </div>
-      <div class="header-actions">
-        <button class="btn btn-outline" id="btnDemoToggle" onclick="App.toggleDemo()" style="font-size:13px;">
-          🎮 演示模式
-        </button>
-        <button class="btn btn-outline" onclick="location.href='dashboard.html'">📊 数据看板</button>
+      <div class="top-center">
+        <span class="action-title" id="actionLabel">高远球</span>
       </div>
-    </header>
-
-    <!-- 演示模式提示条 -->
-    <div id="demoBanner" style="display:none; background:rgba(255,152,0,0.15); border:1px solid var(--yellow); border-radius:8px; padding:10px 16px; margin-bottom:12px; font-size:14px; color:var(--yellow);">
-      🎮 演示模式 — 无需摄像头，使用模拟姿态数据展示全部功能
+      <div class="top-right"></div>
     </div>
 
-    <!-- 动作选择 -->
-    <div class="action-selector" style="margin-bottom:12px;" id="actionSelector">
-      <button class="action-btn active" data-action="high-clear">正手高远球</button>
-      <button class="action-btn" data-action="forehand-lift">正手挑球</button>
-      <button class="action-btn" data-action="smash">正手杀球</button>
-    </div>
+    <!-- 翻转摄像头按钮 -->
+    <span class="flip-side-btn" id="flipBtn" onclick="App.toggleCamera()">🔄</span>
 
-    <!-- 主内容 -->
-    <div class="main-content">
-
-      <!-- 左侧：摄像头区域 -->
-      <div>
-        <div class="video-section" id="videoSection">
-          <video id="video" playsinline></video>
-          <canvas id="poseCanvas"></canvas>
-          <div class="video-overlay-status">
-            <span class="status-dot inactive" id="statusDot"></span>
-            <span id="statusText">等待启动</span>
-          </div>
-        </div>
-
-        <!-- 控制按钮 -->
-        <div class="controls">
-          <button class="btn btn-primary" id="btnStart" onclick="App.startTraining()">
-            ▶ 开始训练
-          </button>
-          <button class="btn btn-danger" id="btnStop" onclick="App.stopTraining()" disabled>
-            ■ 结束训练
-          </button>
-          <button class="btn btn-outline" id="btnReset" onclick="App.resetCamera()">
-            🔄 重置
-          </button>
-        </div>
-
-        <!-- 错误提示 -->
-        <div id="errorArea" class="error-message" style="display:none; margin-top:12px;"></div>
+    <!-- ===== 底部控件组（未训练时） ===== -->
+    <div class="bottom-group" id="bottomGroup">
+      <!-- 状态 -->
+      <div class="status-chip">
+        <span class="status-dot-active" id="statusDot"></span>
+        <span id="statusText">就绪，请开始训练</span>
+        <span id="demoBadge" style="display:none;margin-left:6px;color:#FF9800;">🎮</span>
       </div>
 
-      <!-- 右侧面板 -->
-      <div class="side-panel">
-
-        <!-- 灯光指示 -->
-        <div class="light-panel">
-          <div class="light-indicator" id="lightIndicator"></div>
-          <div class="light-text" id="lightText">准备就绪</div>
-          <div class="light-score" id="lightScore">
-            -- <span class="score-unit">分</span>
-          </div>
-        </div>
-
-        <!-- 提示文字 -->
-        <div class="hint-text" id="hintText">
-          选择动作后点击"开始训练"，将对准摄像头做技术动作
-        </div>
-
-        <!-- 关节信息 -->
-        <div class="info-panel">
-          <div class="info-panel-title">📐 关节角度监测</div>
-          <div id="jointInfo">
-            <div class="joint-info-item dimmed">
-              <span class="joint-label">等待检测</span>
-              <span class="joint-value">--°</span>
-              <span class="joint-standard"></span>
-            </div>
-          </div>
-        </div>
+      <!-- 动作选择 -->
+      <div class="action-row">
+        <span class="action-pill active" data-action="high-clear" onclick="App.selectAction(this)">高远球</span>
+        <span class="action-pill" data-action="forehand-lift" onclick="App.selectAction(this)">挑球</span>
+        <span class="action-pill" data-action="forehand-serve" onclick="App.selectAction(this)">发球</span>
+        <span class="action-pill" data-action="smash" onclick="App.selectAction(this)">杀球</span>
       </div>
+
+      <!-- 开始按钮 -->
+      <span class="big-btn start-btn" id="btnStart" onclick="App.startTraining()">
+        <span class="big-btn-icon">▶</span>
+        <span class="big-btn-text">开始训练</span>
+      </span>
     </div>
   </div>
 
-  <!-- 训练报告弹窗 -->
-  <div id="reportModal" class="modal-overlay" style="display:none;">
-    <div class="modal">
-      <h3>🏆 训练报告</h3>
-      <div id="reportContent"></div>
-      <div class="modal-actions">
-        <button class="btn btn-outline" onclick="App.closeReport()">关闭</button>
-        <button class="btn btn-primary" onclick="App.closeReport(); App.startTraining();">再来一组</button>
-      </div>
+  <!-- ===== 底部面板（训练时显示） ===== -->
+  <div class="bottom-panel" id="bottomPanel" style="display:none">
+    <!-- 突出的大红结束按钮 -->
+    <div class="bp-stop" onclick="App.stopTraining()">
+      <span class="bp-stop-text">■ 结束本次训练</span>
+    </div>
+
+    <!-- 提示文字 -->
+    <div class="hint-row" id="hintRow" style="border-left-color:#8892a8;">
+      <span id="hintText" style="color:#8892a8;">等待检测...</span>
+    </div>
+
+    <!-- 关节角度网格 -->
+    <div class="bp-scroll">
+      <div class="joint-grid" id="jointGrid"></div>
     </div>
   </div>
+</div>
 
-  <!-- 初始化脚本 -->
-  <script src="js/utils.js"></script>
-  <script src="js/angle-calc.js"></script>
-  <script src="js/action-templates.js"></script>
-  <script src="js/pose-engine.js"></script>
-  <script src="js/pose-simulator.js"></script>
-  <script src="js/feedback.js"></script>
-  <script src="js/data-recorder.js"></script>
+<!-- 报告弹窗 -->
+<div id="reportModal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h3>🏆 训练报告</h3>
+    <div id="reportContent"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="modal-btn cancel" onclick="App.closeReport()">关闭</button>
+      <button class="modal-btn confirm" onclick="App.closeReport();App.startTraining();">再来一组</button>
+    </div>
+  </div>
+</div>
 
-  <script>
-    /**
-     * 主应用逻辑
-     */
-    const App = {
-      /** 当前选中的动作ID */
-      currentAction: 'high-clear',
-      /** 训练状态 */
-      isTraining: false,
-      /** 演示模式（无摄像头） */
-      demoMode: false,
-      /** Camera实例 */
-      camera: null,
-      /** 当前活跃的引擎（PoseEngine 或 PoseSimulator） */
-      engine: null,
-      /** 视频元素 */
-      video: null,
-      /** Canvas元素 */
-      canvas: null,
+<script src="js/utils.js"></script>
+<script src="js/angle-calc.js"></script>
+<script src="js/action-templates.js"></script>
+<script src="js/pose-engine.js"></script>
+<script src="js/pose-simulator.js"></script>
+<script src="js/feedback.js"></script>
+<script src="js/data-recorder.js"></script>
 
-      /**
-       * 初始化
-       */
-      async init() {
-        this.video = document.getElementById('video');
-        this.canvas = document.getElementById('poseCanvas');
+<script>
+const actionNames = { 'high-clear': '高远球', 'forehand-lift': '挑球', 'forehand-serve': '发球', 'smash': '杀球' };
+const el = id => document.getElementById(id);
 
-        // 设置Canvas尺寸
-        this.canvas.width = 640;
-        this.canvas.height = 480;
+const App = {
+  currentAction: 'high-clear',
+  isTraining: false,
+  demoMode: false,
+  camera: null,
+  video: null,
+  canvas: null,
+  engine: null,
+  scores: [],
+  angleSum: {},
+  session: null,
+  _timer: null,
+  _frameCount: 0,
 
-        // 初始化Feedback模块
-        Feedback.init(this.canvas, {
-          lightEl: document.getElementById('lightIndicator'),
-          hintEl: document.getElementById('hintText'),
-          infoEl: document.getElementById('jointInfo'),
-          width: 640,
-          height: 480
-        });
+  async init() {
+    this.video = el('video');
+    this.canvas = el('poseCanvas');
+    this.canvas.width = 640; this.canvas.height = 480;
+    Feedback.init(this.canvas, { hintEl: el('hintText'), infoEl: el('jointGrid'), width: 640, height: 480 });
+    await DataRecorder.openDB();
+    this.engine = PoseEngine;
 
-        // 动作选择
-        document.querySelectorAll('.action-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
-            document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            this.currentAction = btn.dataset.action;
-            if (this.isTraining) {
-              this._updateFeedback();
-            }
-          });
-        });
+    const ready = await PoseEngine.init();
+    el('loadingOverlay').style.display = 'none';
+    el('statusText').textContent = ready ? '就绪，请开始训练' : '摄像头未就绪';
+    el('btnStart').disabled = !ready;
+  },
 
-        // 初始化DataRecorder
-        await DataRecorder.openDB();
+  selectAction(el) {
+    document.querySelectorAll('.action-pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    this.currentAction = el.dataset.action;
+    el('actionLabel').textContent = actionNames[el.dataset.action] || el.dataset.action;
+  },
 
-        // 默认引擎为PoseEngine
-        this.engine = PoseEngine;
+  toggleMode() {
+    if (this.isTraining) { alert('请先结束当前训练'); return; }
+    this.demoMode = !this.demoMode;
+    this.engine = this.demoMode ? PoseSimulator : PoseEngine;
 
-        // 预加载MediaPipe
-        const ready = await PoseEngine.init();
-        if (ready) {
-          this.hideLoading();
-          this.setStatus('ready', '就绪，请开始训练');
-        } else {
-          // MediaPipe加载失败，自动启用演示模式
-          this.showError('MediaPipe加载失败，可以切换演示模式查看功能');
-          this._enableDemo();
-        }
-      },
+    el('demoBanner').style.display = this.demoMode ? 'block' : 'none';
+    el('demoBadge').style.display = this.demoMode ? 'inline' : 'none';
+    el('demoPlaceholder').style.display = this.demoMode ? 'flex' : 'none';
+    this.video.style.display = this.demoMode ? 'none' : '';
+    this.canvas.classList.toggle('mirror', !this.demoMode);
 
-      /**
-       * 切换演示模式
-       */
-      toggleDemo() {
-        if (this.isTraining) {
-          this.showError('请先结束当前训练');
-          return;
-        }
+    el('btnModeToggle').textContent = this.demoMode ? '🎮' : '📷';
+    el('flipBtn').style.display = this.demoMode ? 'none' : '';
+    el('statusText').textContent = this.demoMode ? '演示模式已就绪' : '就绪，请开始训练';
+  },
 
-        if (this.demoMode) {
-          this._disableDemo();
-        } else {
-          this._enableDemo();
-        }
-      },
+  toggleCamera() {
+    this.video.style.transform = this.video.style.transform === 'scaleX(1)' ? 'scaleX(-1)' : 'scaleX(1)';
+    this.canvas.style.transform = this.canvas.style.transform === 'scaleX(1)' ? 'scaleX(-1)' : 'scaleX(1)';
+  },
 
-      _enableDemo() {
-        this.demoMode = true;
-        this.engine = PoseSimulator;
-        this.canvas.classList.remove('mirror'); // 演示模式不镜像
-        document.getElementById('btnDemoToggle').textContent = '🎮 真人模式';
-        document.getElementById('btnDemoToggle').style.borderColor = 'var(--yellow)';
-        document.getElementById('btnDemoToggle').style.color = 'var(--yellow)';
-        document.getElementById('demoBanner').style.display = 'block';
-        document.getElementById('hintText').textContent = '🎮 演示模式已开启，点击"开始训练"查看效果';
-        this.hideError();
-        this.setStatus('ready', '演示模式已就绪');
-        console.log('[App] 已切换至演示模式');
-      },
+  async startTraining() {
+    if (this.isTraining) return;
+    this._frameCount = 0;
+    this.scores = [];
+    this.angleSum = {};
+    this.session = { startTime: Date.now(), validFrames: 0 };
 
-      _disableDemo() {
-        this.demoMode = false;
-        this.engine = PoseEngine;
-        this.canvas.classList.add('mirror'); // 真人模式需要镜像（与视频同步）
-        document.getElementById('btnDemoToggle').textContent = '🎮 演示模式';
-        document.getElementById('btnDemoToggle').style.borderColor = '';
-        document.getElementById('btnDemoToggle').style.color = '';
-        document.getElementById('demoBanner').style.display = 'none';
-        this.setStatus('ready', '就绪，请开始训练');
-        console.log('[App] 已切换至真人模式');
-      },
+    if (this.demoMode) {
+      PoseSimulator.setAction(this.currentAction);
+      this.camera = await PoseSimulator.start(this.video, (r) => this._onFrame(r));
+    } else {
+      this.camera = await PoseEngine.start(this.video, (r) => this._onFrame(r), () => {});
+    }
+    if (!this.camera) { alert('启动失败，请确认摄像头权限'); return; }
 
-      /**
-       * 启动训练
-       */
-      async startTraining() {
-        if (this.isTraining) return;
+    this.isTraining = true;
+    el('bottomGroup').style.display = 'none';
+    el('bottomPanel').style.display = 'flex';
+    el('flipBtn').style.display = 'none';
+    el('statusText').textContent = this.demoMode ? '演示中...' : '检测中...';
+  },
 
-        try {
-          this.setStatus('loading', '启动中...');
+  _onFrame(results) {
+    if (!this.isTraining) return;
+    this._frameCount++;
 
-          const action = ActionTemplates.get(this.currentAction);
-          if (!action) {
-            this.showError('未找到动作模板');
-            return;
-          }
-
-          if (this.demoMode) {
-            // ----- 演示模式：用模拟器 -----
-            PoseSimulator.setAction(this.currentAction);
-            this.camera = await PoseSimulator.start(
-              this.video,
-              (results) => this._onPoseResults(results, PoseSimulator),
-              (err) => this._onPoseError(err)
-            );
-          } else {
-            // ----- 真人模式：用摄像头 + MediaPipe -----
-            if (!PoseEngine._initialized) {
-              this.showError('姿态检测引擎未就绪');
-              return;
-            }
-            this.camera = await PoseEngine.start(
-              this.video,
-              (results) => this._onPoseResults(results, PoseEngine),
-              (err) => this._onPoseError(err)
-            );
-          }
-
-          if (!this.camera) {
-            this.showError(this.demoMode ? '模拟器启动失败' : '摄像头启动失败，请检查权限');
-            return;
-          }
-
-          this.isTraining = true;
-          document.getElementById('btnStart').disabled = true;
-          document.getElementById('btnStop').disabled = false;
-          this.hideError();
-
-          // 开始记录训练
-          DataRecorder.startSession(this.currentAction);
-
-          this.setStatus('active', '训练中...');
-          this.updateLight('unknown', '训练中');
-
-          console.log(`[App] 训练开始 - 动作: ${action.name} - 模式: ${this.demoMode ? '演示' : '摄像头'}`);
-
-        } catch (err) {
-          console.error('[App] 训练启动失败:', err);
-          this.showError('启动失败: ' + (err.message || err));
-          this.isTraining = false;
-          document.getElementById('btnStart').disabled = false;
-          document.getElementById('btnStop').disabled = true;
-        }
-      },
-
-      /**
-       * 停止训练
-       */
-      async stopTraining() {
-        if (!this.isTraining) return;
-
-        this.isTraining = false;
-
-        if (this.demoMode) {
-          PoseSimulator.stop();
-        } else {
-          PoseEngine.stop();
-        }
-
-        document.getElementById('btnStart').disabled = false;
-        document.getElementById('btnStop').disabled = true;
-
-        this.setStatus('inactive', '已停止');
-
-        // 结束记录
-        const session = await DataRecorder.endSession();
-        if (session) {
-          this.showReport(session);
-        }
-
-        Feedback.reset();
-        this.updateLight('unknown', '训练结束');
-      },
-
-      /**
-       * 重置
-       */
-      async resetCamera() {
-        if (this.isTraining) {
-          await this.stopTraining();
-        }
-        PoseEngine.stop();
-        PoseSimulator.stop();
-        if (this.camera) {
-          try { this.camera.stop(); } catch(e) {}
-          this.camera = null;
-        }
-
-        const msg = this.demoMode ? '演示模式已重置' : '已重置';
-        this.setStatus('inactive', msg);
-        document.getElementById('btnStart').disabled = false;
-        document.getElementById('btnStop').disabled = true;
-        Feedback.reset();
-      },
-
-      /**
-       * 每一帧检测结果回调
-       */
-      _onPoseResults(results, engine) {
-        if (!this.isTraining) return;
-
-        const landmarks = results.poseLandmarks;
-        if (!landmarks) return;
-
-        // 演示模式：直接使用预计算的真实角度（绕过AngleCalc间接推算）
-        // 真人模式：从关键点实时计算角度
-        const angles = this.demoMode && results._demoAngles
-          ? results._demoAngles
-          : AngleCalc.getAll(landmarks);
-
-        // 评估动作
-        const evalResult = ActionTemplates.evaluateSession(this.currentAction, angles);
-
-        // 记录数据
-        DataRecorder.recordFrame(angles, evalResult);
-
-        // 更新反馈
-        Feedback.update(landmarks, angles, this.currentAction, evalResult);
-
-        // 更新灯光
-        this.updateLight(evalResult.overallLevel, '', evalResult.score);
-
-        // 更新分数
-        const avgScore = DataRecorder.getCurrentAverage();
-        document.getElementById('lightScore').innerHTML = `${avgScore} <span class="score-unit">分</span>`;
-
-        // 状态
-        const modeLabel = this.demoMode ? '演示' : '检测';
-        this.setStatus('active', `${modeLabel}中 (${engine.frameCount}帧)`);
-      },
-
-      /**
-       * 检测错误回调
-       */
-      _onPoseError(err) {
-        console.error('[App] 检测错误:', err);
-        if (this.isTraining) {
-          this.showError('检测异常: ' + (err.message || err));
-        }
-      },
-
-      /**
-       * 更新反馈（切换动作时）
-       */
-      _updateFeedback() {
-        const landmarks = this.engine?.getLandmarks();
-        if (landmarks) {
-          const angles = AngleCalc.getAll(landmarks);
-          const evalResult = ActionTemplates.evaluateSession(this.currentAction, angles);
-          Feedback.update(landmarks, angles, this.currentAction, evalResult);
-        }
-      },
-
-      /**
-       * 更新状态指示
-       */
-      setStatus(state, text) {
-        const dot = document.getElementById('statusDot');
-        const txt = document.getElementById('statusText');
-        dot.className = 'status-dot ' + (state === 'active' ? 'active' : 'inactive');
-        txt.textContent = text;
-      },
-
-      /**
-       * 更新灯光
-       */
-      updateLight(level, text, score) {
-        const colors = {
-          green: '#4CAF50',
-          yellow: '#FF9800',
-          red: '#F44336',
-          unknown: '#9E9E9E'
-        };
-        const texts = {
-          green: '动作规范',
-          yellow: '轻度偏差',
-          red: '严重偏离',
-          unknown: text || '检测中'
-        };
-
-        const indicator = document.getElementById('lightIndicator');
-        indicator.style.backgroundColor = colors[level] || colors.unknown;
-        indicator.style.boxShadow = level !== 'unknown' ? `0 0 30px ${colors[level]}` : 'none';
-
-        document.getElementById('lightText').textContent = texts[level] || text;
-      },
-
-      /**
-       * 显示训练报告
-       */
-      showReport(session) {
-        const action = ActionTemplates.get(session.actionType);
-        const container = document.getElementById('reportContent');
-
-        const scoreColor = session.overallScore >= 80 ? 'var(--green)' : (session.overallScore >= 60 ? 'var(--yellow)' : 'var(--red)');
-        const durationSec = Math.round(session.duration / 1000);
-        const min = Math.floor(durationSec / 60);
-        const sec = durationSec % 60;
-
-        let jointHtml = '';
-        if (action) {
-          for (const [jointName, jointCfg] of Object.entries(action.joints)) {
-            const avg = session.jointAverages[jointName];
-            if (avg !== undefined) {
-              const deviation = Math.abs(avg - jointCfg.standard);
-              const level = deviation <= jointCfg.tolerance * 0.6 ? 'green' : (deviation <= jointCfg.tolerance ? 'yellow' : 'red');
-              const color = { green: 'var(--green)', yellow: 'var(--yellow)', red: 'var(--red)' }[level];
-              jointHtml += `<div class="report-detail-item">
-                <span>${jointCfg.label}</span>
-                <span style="color:${color}">${avg}° (标准${jointCfg.standard}°)</span>
-              </div>`;
-            }
-          }
-        }
-
-        container.innerHTML = `
-          <div class="report-section">
-            <div class="report-score-big" style="color:${scoreColor}">
-              ${session.overallScore}<span style="font-size:24px">分</span>
-            </div>
-            <p style="text-align:center;color:var(--text-dim);margin-top:4px;">
-              ${session.overallScore >= 60 ? '✅ 达标' : '❌ 未达标'} ·
-              训练时长 ${min}分${sec}秒 ·
-              有效帧 ${session.validFrames}/${session.totalFrames}
-            </p>
-          </div>
-          <div class="report-section">
-            <h4>动作类型</h4>
-            <p style="font-size:16px;font-weight:600;">${session.actionName}</p>
-          </div>
-          <div class="report-section">
-            <h4>关节平均角度</h4>
-            ${jointHtml || '<p style="color:var(--text-dim)">无有效数据</p>'}
-          </div>
-          <div class="report-section">
-            <h4>训练时间</h4>
-            <p>${session.date} · ${min}分${sec}秒</p>
-          </div>
-        `;
-
-        document.getElementById('reportModal').style.display = 'flex';
-      },
-
-      closeReport() {
-        document.getElementById('reportModal').style.display = 'none';
-      },
-
-      showLoading(text) {
-        document.getElementById('loadingOverlay').style.display = 'flex';
-        document.getElementById('loadingText').textContent = text || '加载中...';
-      },
-
-      hideLoading() {
-        document.getElementById('loadingOverlay').style.display = 'none';
-      },
-
-      showError(msg) {
-        const el = document.getElementById('errorArea');
-        el.textContent = msg;
-        el.style.display = 'block';
-      },
-
-      hideError() {
-        document.getElementById('errorArea').style.display = 'none';
+    let angles;
+    if (this.demoMode && results._demoAngles) {
+      angles = results._demoAngles;
+    } else {
+      const lm = results.poseLandmarks;
+      if (!lm) return;
+      // 过滤无人
+      let valid = 0;
+      [11,12,23,24].forEach(i => { if (lm[i] && lm[i].visibility > 0.5) valid++; });
+      if (valid < 2) {
+        el('scoreNum') && (el('scoreNum').textContent = '--');
+        el('hintText').textContent = '未检测到人体，请站到镜头前';
+        el('hintRow').style.borderLeftColor = '#9E9E9E';
+        if (this._canvasCtx || Feedback.ctx) Feedback._drawSkeleton(lm);
+        return;
       }
-    };
+      angles = AngleCalc.getAll(lm);
+      if (!angles) return;
 
-    document.addEventListener('DOMContentLoaded', () => App.init());
-  </script>
+      if (this._frameCount % 5 === 0) {
+        for (const [j,d] of Object.entries(angles)) {
+          if (d) { if (!this.angleSum[j]) this.angleSum[j]=[]; this.angleSum[j].push(d.angle); }
+        }
+      }
+    }
+
+    const ev = ActionTemplates.evaluateSession(this.currentAction, angles);
+    if (!ev) return;
+    this.scores.push(ev.score);
+    this.session.validFrames++;
+
+    Feedback.update(results.poseLandmarks, angles, this.currentAction, ev);
+    el('statusText').textContent = (this.demoMode ? '演示' : '检测') + '中 (' + this._frameCount + '帧)';
+  },
+
+  async stopTraining() {
+    this.isTraining = false;
+    if (this.demoMode) PoseSimulator.stop(); else PoseEngine.stop();
+    Feedback.reset();
+    el('bottomGroup').style.display = 'flex';
+    el('bottomPanel').style.display = 'none';
+    if (!this.demoMode) el('flipBtn').style.display = '';
+    el('statusText').textContent = '已停止';
+
+    const avgScore = this.scores.length > 0 ? Math.round(this.scores.reduce((a,b)=>a+b,0)/this.scores.length) : 0;
+    const duration = Math.round((Date.now() - this.session.startTime)/1000);
+    const action = ActionTemplates.get(this.currentAction);
+    const min = Math.floor(duration/60);
+    const sec = duration % 60;
+
+    let html = `<div class="report-score-big" style="color:${avgScore>=80?'#4CAF50':(avgScore>=60?'#FF9800':'#F44336')}">${avgScore}<span style="font-size:20px;">分</span></div>`;
+    html += `<p style="text-align:center;color:#8892a8;margin-top:4px;">${avgScore>=60?'✅达标':'❌未达标'} · ${min}分${sec}秒 · ${this.session.validFrames}帧</p>`;
+
+    html += `<div style="margin-top:14px;"><h4 style="font-size:13px;color:#8892a8;margin-bottom:8px;">动作类型</h4><p style="font-size:15px;font-weight:600;">${action?.name||this.currentAction}</p></div>`;
+
+    html += `<div style="margin-top:12px;"><h4 style="font-size:13px;color:#8892a8;margin-bottom:8px;">关节平均分析</h4>`;
+    if (action && this.angleSum) {
+      for (const [j,jc] of Object.entries(action.joints)) {
+        const vals = this.angleSum[j];
+        if (vals && vals.length) {
+          const avg = Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+          const diff = avg - jc.standard;
+          const level = Math.abs(diff) <= jc.tolerance*0.6 ? 'green' : (Math.abs(diff) <= jc.tolerance ? 'yellow' : 'red');
+          const color = {green:'#4CAF50',yellow:'#FF9800',red:'#F44336'}[level];
+          html += `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);color:${color};font-size:13px;"><span>${jc.label}</span><span>${avg}° (${diff>0?'+'+diff:diff}°)</span></div>`;
+        }
+      }
+    }
+    html += `</div>`;
+
+    el('reportContent').innerHTML = html;
+    el('reportModal').style.display = 'flex';
+  },
+
+  closeReport() { el('reportModal').style.display = 'none'; }
+};
+
+document.addEventListener('DOMContentLoaded', () => App.init());
+</script>
 </body>
 </html>
