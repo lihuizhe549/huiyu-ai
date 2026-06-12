@@ -147,13 +147,35 @@ const App = {
     await DataRecorder.openDB();
     this.engine = PoseEngine;
 
+    el('statusText').textContent = '正在启动摄像头...';
+
+    // 先加载MediaPipe
     const ready = await PoseEngine.init();
+    if (!ready) {
+      el('loadingOverlay').style.display = 'none';
+      el('statusText').textContent = '摄像头未就绪';
+      el('btnStart').disabled = true;
+      return;
+    }
+
+    // 立即打开摄像头（只显示画面，不启动识别）
+    try {
+      // 用getUserMedia直接打开摄像头预览
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: 640, height: 480 },
+        audio: false
+      });
+      this.video.srcObject = stream;
+      await this.video.play();
+      this._previewStream = stream;
+      this.video.style.transform = 'scaleX(1)';
+      this.canvas.style.transform = 'scaleX(1)';
+    } catch(e) {
+      console.warn('摄像头预览启动失败:', e);
+    }
+
     el('loadingOverlay').style.display = 'none';
-    el('statusText').textContent = ready ? '就绪，请开始训练' : '摄像头未就绪';
-    el('btnStart').disabled = !ready;
-    // 默认后置摄像头（不镜像）
-    this.video.style.transform = 'scaleX(1)';
-    this.canvas.style.transform = 'scaleX(1)';
+    el('statusText').textContent = '就绪，请开始训练';
     el('flipBtn').textContent = '🔙';
   },
 
@@ -208,6 +230,15 @@ const App = {
     this.scores = [];
     this.angleSum = {};
     this.session = { startTime: Date.now(), validFrames: 0 };
+
+    const action = ActionTemplates.get(this.currentAction);
+    if (!action) return;
+
+    // 先释放预览流，再让PoseEngine接管摄像头
+    if (this._previewStream) {
+      this._previewStream.getTracks().forEach(t => t.stop());
+      this._previewStream = null;
+    }
 
     if (this.demoMode) {
       PoseSimulator.setAction(this.currentAction);
@@ -305,6 +336,9 @@ const App = {
     if (!this.demoMode) el('flipBtn').style.display = '';
     el('statusText').textContent = '已停止';
 
+    // 恢复摄像头预览
+    this._restorePreview();
+
     const avgScore = this.scores.length > 0 ? Math.round(this.scores.reduce((a,b)=>a+b,0)/this.scores.length) : 0;
     const duration = Math.round((Date.now() - this.session.startTime)/1000);
     const action = ActionTemplates.get(this.currentAction);
@@ -335,7 +369,25 @@ const App = {
     el('reportModal').style.display = 'flex';
   },
 
-  closeReport() { el('reportModal').style.display = 'none'; }
+  closeReport() { el('reportModal').style.display = 'none'; },
+
+  async _restorePreview() {
+    // 恢复摄像头预览（训练结束后继续显示画面）
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: this._facingMode, width: 640, height: 480 },
+        audio: false
+      });
+      this.video.srcObject = stream;
+      await this.video.play();
+      this._previewStream = stream;
+      const mirror = this._facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+      this.video.style.transform = mirror;
+      this.canvas.style.transform = mirror;
+    } catch(e) {
+      console.warn('恢复预览失败:', e);
+    }
+  }
 };
 
 document.addEventListener('DOMContentLoaded', () => App.init());
