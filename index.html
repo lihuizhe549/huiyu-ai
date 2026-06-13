@@ -48,11 +48,14 @@
     <div class="overlay-top">
       <div class="top-left">
         <span class="icon-btn" id="btnModeToggle" onclick="App.toggleMode()">📷</span>
+        <span class="icon-btn" id="btnCollectMode" onclick="App.toggleCollect()" style="font-size:13px;width:44px;">📊</span>
       </div>
       <div class="top-center">
         <span class="action-title" id="actionLabel">高远球</span>
       </div>
-      <div class="top-right"></div>
+      <div class="top-right">
+        <span class="icon-btn" id="btnCollectBadge" style="display:none;background:rgba(0,188,212,0.3);border-color:#4DD0E1;font-size:11px;width:auto;padding:0 8px;">采集</span>
+      </div>
     </div>
 
     <!-- 翻转摄像头按钮 -->
@@ -143,7 +146,8 @@ const App = {
   scores: [],
   angleSum: {},
   session: null,
-  _facingMode: 'environment',  // 默认后置摄像头
+  _facingMode: 'environment',
+  _collectMode: false,  // false=训练模式(有评分) true=采集模式(只录角度)
   _timer: null,
   _frameCount: 0,
 
@@ -192,6 +196,16 @@ const App = {
     el('actionLabel').textContent = actionNames[el.dataset.action] || el.dataset.action;
   },
 
+  /** 切换采集模式（不评分，只录角度作为常模） */
+  toggleCollect() {
+    if (this.isTraining) { alert('请先结束当前训练'); return; }
+    this._collectMode = !this._collectMode;
+    el('btnCollectMode').textContent = this._collectMode ? '✅' : '📊';
+    el('btnCollectBadge').style.display = this._collectMode ? '' : 'none';
+    el('btnCollectMode').style.borderColor = this._collectMode ? '#4DD0E1' : '';
+    el('statusText').textContent = this._collectMode ? '📊 采集模式 — 不评分，记录角度数据' : '就绪，请开始训练';
+  },
+
   toggleMode() {
     if (this.isTraining) { alert('请先结束当前训练'); return; }
     this.demoMode = !this.demoMode;
@@ -219,7 +233,7 @@ const App = {
       PoseEngine.switchCamera(this._facingMode).then(ok => {
         if (ok) {
           this.video.style.transform = mirror;
-          this.canvas.style.transform = mirror;
+          // Canvas不再CSS镜像，文字由_drawOnCamera内部处理
           el('flipBtn').textContent = isFront ? '🤳' : '🔙';
         }
       });
@@ -231,9 +245,6 @@ const App = {
         this.video.srcObject = stream;
         this.video.play();
         this.video.style.transform = mirror;
-        this.canvas.style.transform = mirror;
-        el('flipBtn').textContent = isFront ? '🤳' : '🔙';
-      });
     }
   },
 
@@ -305,27 +316,40 @@ const App = {
     this.session.validFrames++;
 
     // 更新UI：底部面板的分数、提示、关节角度
-    el('scoreNum').textContent = ev.score;
-    el('scoreNum').style.color = ev.overallLevel === 'green' ? '#4CAF50' : (ev.overallLevel === 'red' ? '#F44336' : '#FF9800');
+    if (this._collectMode) {
+      // 采集模式：不显示分数
+      el('scoreNum').textContent = '--';
+      el('scoreNum').style.color = '#4DD0E1';
+      el('hintText').textContent = '📊 采集模式中，做完整挥拍动作';
+      el('hintText').style.color = '#4DD0E1';
+      el('hintRow').style.borderLeftColor = '#4DD0E1';
+    } else {
+      // 训练模式：正常显示分数
+      el('scoreNum').textContent = ev.score;
+      el('scoreNum').style.color = ev.overallLevel === 'green' ? '#4CAF50' : (ev.overallLevel === 'red' ? '#F44336' : '#FF9800');
+    }
 
     // 提示
     const action = ActionTemplates.get(this.currentAction);
-    let worst = null, worstDev = 0;
-    for (const [jn, jc] of Object.entries(action.joints)) {
-      const ad = angles[jn];
-      if (ad) {
-        const dev = Math.abs(ad.angle - jc.standard);
-        if (dev > jc.tolerance * 0.6 && dev > worstDev) { worst = { name: jc.label, angle: ad.angle, std: jc.standard, tol: jc.tolerance, diff: Math.round(ad.angle - jc.standard) }; worstDev = dev; }
+    if (action && !this._collectMode) {
+      // 训练模式：显示偏差提示
+      let worst = null, worstDev = 0;
+      for (const [jn, jc] of Object.entries(action.joints)) {
+        const ad = angles[jn];
+        if (ad) {
+          const dev = Math.abs(ad.angle - jc.standard);
+          if (dev > jc.tolerance * 0.6 && dev > worstDev) { worst = { name: jc.label, angle: ad.angle, std: jc.standard, tol: jc.tolerance, diff: Math.round(ad.angle - jc.standard) }; worstDev = dev; }
+        }
       }
-    }
-    if (worst) {
-      el('hintText').textContent = `${worst.name}偏差${Math.abs(worst.diff)}° (${worst.angle}°, 标准${worst.std}°±${worst.tol}°)`;
-      el('hintText').style.color = worstDev > worst.tol ? '#F44336' : '#FF9800';
-      el('hintRow').style.borderLeftColor = worstDev > worst.tol ? '#F44336' : '#FF9800';
-    } else {
-      el('hintText').textContent = '动作规范，继续保持！';
-      el('hintText').style.color = '#4CAF50';
-      el('hintRow').style.borderLeftColor = '#4CAF50';
+      if (worst) {
+        el('hintText').textContent = `${worst.name}偏差${Math.abs(worst.diff)}° (${worst.angle}°, 标准${worst.std}°±${worst.tol}°)`;
+        el('hintText').style.color = worstDev > worst.tol ? '#F44336' : '#FF9800';
+        el('hintRow').style.borderLeftColor = worstDev > worst.tol ? '#F44336' : '#FF9800';
+      } else {
+        el('hintText').textContent = '动作规范，继续保持！';
+        el('hintText').style.color = '#4CAF50';
+        el('hintRow').style.borderLeftColor = '#4CAF50';
+      }
     }
 
     // 关节角度
@@ -333,8 +357,7 @@ const App = {
     for (const [jn, jc] of Object.entries(action.joints)) {
       const ad = angles[jn];
       const val = ad ? ad.angle+'°' : '--°';
-      const dev = ad ? Math.abs(ad.angle - jc.standard) : 999;
-      const color = dev <= jc.tolerance*0.6 ? '#4CAF50' : (dev <= jc.tolerance ? '#FF9800' : '#F44336');
+      const color = this._collectMode ? '#4DD0E1' : (ad ? (Math.abs(ad.angle - jc.standard) <= jc.tolerance*0.6 ? '#4CAF50' : (Math.abs(ad.angle - jc.standard) <= jc.tolerance ? '#FF9800' : '#F44336')) : '#556');
       gridHtml += `<div class="joint-cell"><span class="jc-label">${jc.label}</span><span class="jc-value" style="color:${color}">${val}</span></div>`;
     }
     el('jointGrid').innerHTML = gridHtml;
@@ -345,7 +368,7 @@ const App = {
     this._drawOnCamera(landmarks || results.poseLandmarks, angles);
   },
 
-  /** 在Canvas上绘制骨架+角度标签 */
+  /** 在Canvas上绘制骨架+角度标签（手动镜像，文字不翻） */
   _drawOnCamera(landmarks, angles) {
     if (!this.canvas || !landmarks) return;
     const ctx = this.canvas.getContext('2d');
@@ -354,6 +377,9 @@ const App = {
     ctx.clearRect(0, 0, w, h);
     if (!landmarks) return;
 
+    const isMirror = this._facingMode === 'user';
+    const mx = (px) => isMirror ? (w - px * w) : px * w;
+
     // 骨架连线
     const connections = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
     ctx.lineCap = 'round';
@@ -361,29 +387,29 @@ const App = {
     for (const [i, j] of connections) {
       const a = landmarks[i], b = landmarks[j];
       if (a && b && a.visibility > 0.5 && b.visibility > 0.5) {
-        ctx.beginPath(); ctx.moveTo(a.x * w, a.y * h); ctx.lineTo(b.x * w, b.y * h);
+        ctx.beginPath(); ctx.moveTo(mx(a.x), a.y * h); ctx.lineTo(mx(b.x), b.y * h);
         ctx.strokeStyle = '#00E5FF'; ctx.stroke();
       }
     }
     // 关键点
     for (const lm of landmarks) {
       if (lm && lm.visibility > 0.5) {
-        ctx.beginPath(); ctx.arc(lm.x * w, lm.y * h, 3, 0, 2 * Math.PI);
+        ctx.beginPath(); ctx.arc(mx(lm.x), lm.y * h, 3, 0, 2 * Math.PI);
         ctx.fillStyle = '#FF6B6B'; ctx.fill();
       }
     }
 
-    // 角度标签
+    // 角度标签（不翻转）
     if (!angles || !this.currentAction) return;
     const action = ActionTemplates.get(this.currentAction);
     if (!action) return;
     const labelPos = {
-      rightElbow: () => landmarks[14] ? { x: landmarks[14].x * w, y: landmarks[14].y * h - 16 } : null,
-      rightShoulder: () => landmarks[12] ? { x: landmarks[12].x * w, y: landmarks[12].y * h - 16 } : null,
-      rightHip: () => landmarks[24] ? { x: landmarks[24].x * w, y: landmarks[24].y * h - 16 } : null,
-      rightKnee: () => landmarks[26] ? { x: landmarks[26].x * w, y: landmarks[26].y * h - 16 } : null,
-      trunkRotation: () => landmarks[11] && landmarks[12] ? { x: ((landmarks[11].x + landmarks[12].x) / 2) * w, y: ((landmarks[11].y + landmarks[12].y) / 2) * h - 30 } : null,
-      trunkLean: () => landmarks[23] && landmarks[24] ? { x: ((landmarks[23].x + landmarks[24].x) / 2) * w, y: ((landmarks[23].y + landmarks[24].y) / 2) * h + 20 } : null
+      rightElbow: () => landmarks[14] ? { x: mx(landmarks[14].x), y: landmarks[14].y * h - 16 } : null,
+      rightShoulder: () => landmarks[12] ? { x: mx(landmarks[12].x), y: landmarks[12].y * h - 16 } : null,
+      rightHip: () => landmarks[24] ? { x: mx(landmarks[24].x), y: landmarks[24].y * h - 16 } : null,
+      rightKnee: () => landmarks[26] ? { x: mx(landmarks[26].x), y: landmarks[26].y * h - 16 } : null,
+      trunkRotation: () => landmarks[11] && landmarks[12] ? { x: (mx(landmarks[11].x) + mx(landmarks[12].x)) / 2, y: ((landmarks[11].y + landmarks[12].y) / 2) * h - 30 } : null,
+      trunkLean: () => landmarks[23] && landmarks[24] ? { x: (mx(landmarks[23].x) + mx(landmarks[24].x)) / 2, y: ((landmarks[23].y + landmarks[24].y) / 2) * h + 20 } : null
     };
     ctx.font = 'bold 13px sans-serif';
     ctx.textAlign = 'center';
@@ -411,17 +437,69 @@ const App = {
     if (!this.demoMode) el('flipBtn').style.display = '';
     el('statusText').textContent = '已停止 · 点开始重新训练';
 
-    const avgScore = this.scores.length > 0 ? Math.round(this.scores.reduce((a,b)=>a+b,0)/this.scores.length) : 0;
     const duration = Math.round((Date.now() - this.session.startTime)/1000);
     const action = ActionTemplates.get(this.currentAction);
     const min = Math.floor(duration/60);
     const sec = duration % 60;
 
+    // 采集模式：保存为常模数据，不显示评分
+    if (this._collectMode) {
+      // 计算各关节平均值
+      const avgAngles = {};
+      if (action && this.angleSum) {
+        for (const [j,jc] of Object.entries(action.joints)) {
+          const vals = this.angleSum[j];
+          if (vals && vals.length) {
+            avgAngles[j] = Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+          }
+        }
+      }
+
+      // 保存到本地常模数据
+      const allNorms = JSON.parse(localStorage.getItem('normData') || '{}');
+      const existing = allNorms[this.currentAction] || {};
+      const count = (existing._count || 0) + 1;
+      for (const [jn, angle] of Object.entries(avgAngles)) {
+        if (!existing[jn]) {
+          existing[jn] = { sum: angle, sumSq: angle * angle, count: 1, avg: angle, std: 0 };
+        } else {
+          existing[jn].sum = (existing[jn].sum || existing[jn].avg * (count - 1)) + angle;
+          existing[jn].sumSq = (existing[jn].sumSq || existing[jn].avg * existing[jn].avg * (count - 1)) + angle * angle;
+          existing[jn].count = count;
+          existing[jn].avg = Math.round(existing[jn].sum / existing[jn].count);
+          if (existing[jn].count > 1) {
+            const variance = (existing[jn].sumSq - (existing[jn].sum * existing[jn].sum) / existing[jn].count) / (existing[jn].count - 1);
+            existing[jn].std = Math.round(Math.sqrt(Math.max(0, variance)));
+          }
+        }
+      }
+      existing._count = count;
+      allNorms[this.currentAction] = existing;
+      localStorage.setItem('normData', JSON.stringify(allNorms));
+
+      // 显示采集完成的报告（无分数）
+      let html = `<div style="text-align:center;padding:10px 0;"><span style="font-size:36px;font-weight:700;color:#4DD0E1;">${count}次</span><span style="font-size:16px;color:#8892a8;"> 采集</span></div>`;
+      html += `<p style="text-align:center;color:#8892a8;">${min}分${sec}秒 | ${Object.keys(avgAngles).length}个关节</p>`;
+      html += `<div style="margin-top:12px;"><h4 style="font-size:13px;color:#8892a8;margin-bottom:8px;">关节平均角度</h4>`;
+      if (action) {
+        for (const [j,jc] of Object.entries(action.joints)) {
+          const v = avgAngles[j];
+          if (v !== undefined) {
+            html += `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);color:#4DD0E1;font-size:13px;"><span>${jc.label}</span><span>${v}°</span></div>`;
+          }
+        }
+      }
+      html += `</div>`;
+      el('reportContent').innerHTML = html;
+      el('reportModal').style.display = 'flex';
+      return;
+    }
+
+    // 训练模式：正常显示评分报告
+    const avgScore = this.scores.length > 0 ? Math.round(this.scores.reduce((a,b)=>a+b,0)/this.scores.length) : 0;
     let html = `<div class="report-score-big" style="color:${avgScore>=80?'#4CAF50':(avgScore>=60?'#FF9800':'#F44336')}">${avgScore}<span style="font-size:20px;">分</span></div>`;
     html += `<p style="text-align:center;color:#8892a8;margin-top:4px;">${avgScore>=60?'✅达标':'❌未达标'} · ${min}分${sec}秒 · ${this.session.validFrames}帧</p>`;
-
     html += `<div style="margin-top:14px;"><h4 style="font-size:13px;color:#8892a8;margin-bottom:8px;">动作类型</h4><p style="font-size:15px;font-weight:600;">${action?.name||this.currentAction}</p></div>`;
-
     html += `<div style="margin-top:12px;"><h4 style="font-size:13px;color:#8892a8;margin-bottom:8px;">关节平均分析</h4>`;
     if (action && this.angleSum) {
       for (const [j,jc] of Object.entries(action.joints)) {
@@ -436,7 +514,6 @@ const App = {
       }
     }
     html += `</div>`;
-
     el('reportContent').innerHTML = html;
     el('reportModal').style.display = 'flex';
   },
