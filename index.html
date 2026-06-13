@@ -152,17 +152,19 @@ const App = {
   _frameCount: 0,
 
   async init() {
-    this.video = el('video');
-    this.canvas = el('poseCanvas');
-    this.canvas.width = 960; this.canvas.height = 720;
-    await DataRecorder.openDB();
-    this.engine = PoseEngine;
-
-    // 预加载MediaPipe（静默进行）
-    PoseEngine.init();
-
-    el('statusText').textContent = '就绪，请开始训练';
-    el('flipBtn').textContent = '🔙';
+    try {
+      this.video = el('video');
+      this.canvas = el('poseCanvas');
+      this.canvas.width = 960; this.canvas.height = 720;
+      await DataRecorder.openDB();
+      this.engine = PoseEngine;
+      PoseEngine.init();
+      el('statusText').textContent = '就绪，请开始训练';
+      el('flipBtn').textContent = '🔙';
+    } catch(e) {
+      console.warn('Init error (non-fatal):', e);
+      el('statusText').textContent = '点击按钮开始';
+    }
   },
 
   /** 用户点击后打开摄像头并直接开始训练 */
