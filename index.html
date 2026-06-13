@@ -6,7 +6,6 @@
   <meta name="theme-color" content="#0a0e1a">
   <title>彗羽AI - 实时动作识别</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -152,19 +151,18 @@ const App = {
   _frameCount: 0,
 
   async init() {
-    try {
-      this.video = el('video');
-      this.canvas = el('poseCanvas');
-      this.canvas.width = 960; this.canvas.height = 720;
-      await DataRecorder.openDB();
-      this.engine = PoseEngine;
-      PoseEngine.init();
-      el('statusText').textContent = '就绪，请开始训练';
-      el('flipBtn').textContent = '🔙';
-    } catch(e) {
-      console.warn('Init error (non-fatal):', e);
-      el('statusText').textContent = '点击按钮开始';
-    }
+    this.video = el('video');
+    this.canvas = el('poseCanvas');
+    this.canvas.width = 960; this.canvas.height = 720;
+    try { await DataRecorder.openDB(); } catch(e) {}
+    this.engine = PoseEngine;
+    el('statusText').textContent = '就绪，请开始训练';
+    el('flipBtn').textContent = '🔙';
+    // 延后加载MediaPipe，不影响页面交互
+    setTimeout(() => {
+      try { if (typeof Pose !== 'undefined') PoseEngine.init(); }
+      catch(e) { /* MediaPipe不可用时自动降级 */ }
+    }, 100);
   },
 
   /** 用户点击后打开摄像头并直接开始训练 */
@@ -525,5 +523,7 @@ const App = {
 
 document.addEventListener('DOMContentLoaded', () => App.init());
 </script>
+  <!-- MediaPipe 异步加载，不阻塞页面渲染 -->
+  <script async defer src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 </body>
 </html>
