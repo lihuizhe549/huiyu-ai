@@ -467,6 +467,7 @@ const App = {
 
     // 采集模式：保存为常模数据，不显示评分
     if (this._collectMode) {
+      el('scoreNum').textContent = '--';
       // 计算各关节平均值
       const avgAngles = {};
       if (action && this.angleSum) {
@@ -543,6 +544,21 @@ const App = {
 
   closeReport() { el('reportModal').style.display = 'none'; },
 
+  /** 导出常模数据（复制到剪贴板，可粘贴到小程序导入） */
+  exportNorm() {
+    const data = localStorage.getItem('normData');
+    if (!data) { wx && wx.showToast({ title: '无常模数据', icon: 'none' }); return; }
+    // 复制JSON到剪贴板
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(data).then(() => {
+        alert('常模数据已复制！\n打开小程序→常模数据→导入即可使用');
+      });
+    } else {
+      // 兜底
+      prompt('复制以下数据到小程序导入：', data);
+    }
+  },
+
   /** 显示常模数据 */
   showNorm() {
     const allNorms = JSON.parse(localStorage.getItem('normData') || '{}');
@@ -577,7 +593,12 @@ const App = {
       html += `<p style="text-align:center;color:#8892a8;padding:20px 0;">暂无常模数据。在采集模式(📊)下训练后会自动保存。</p>`;
     }
     html += `</div>`;
-    html += `<div style="display:flex;gap:10px;margin-top:14px;"><button class="modal-btn confirm" onclick="document.getElementById('normModal').style.display='none'" style="width:100%;">关闭</button></div>`;
+    html += `<div style="display:flex;gap:10px;margin-top:14px;">`;
+    if (hasData) {
+      html += `<button class="modal-btn cancel" onclick="App.exportNorm()" style="flex:1;">📤 导出</button>`;
+    }
+    html += `<button class="modal-btn confirm" onclick="document.getElementById('normModal').style.display='none'" style="flex:1;">关闭</button>`;
+    html += `</div></div>`;
 
     el('normContent').innerHTML = html;
     el('normModal').style.display = 'flex';
