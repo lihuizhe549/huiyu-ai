@@ -49,6 +49,7 @@
       <div class="top-left">
         <span class="icon-btn" id="btnModeToggle" onclick="App.toggleMode()">📷</span>
         <span class="icon-btn" id="btnCollectMode" onclick="App.toggleCollect()" style="font-size:13px;width:44px;">📊</span>
+        <span class="icon-btn" onclick="App.showNorm()" style="font-size:14px;width:44px;">📋</span>
       </div>
       <div class="top-center">
         <span class="action-title" id="actionLabel">高远球</span>
@@ -108,6 +109,13 @@
     <div class="bp-scroll">
       <div class="joint-grid" id="jointGrid"></div>
     </div>
+  </div>
+</div>
+
+<!-- 常模数据弹窗 -->
+<div id="normModal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div id="normContent"></div>
   </div>
 </div>
 
@@ -532,7 +540,47 @@ const App = {
     el('reportModal').style.display = 'flex';
   },
 
-  closeReport() { el('reportModal').style.display = 'none'; }
+  closeReport() { el('reportModal').style.display = 'none'; },
+
+  /** 显示常模数据 */
+  showNorm() {
+    const allNorms = JSON.parse(localStorage.getItem('normData') || '{}');
+    const actionTpl = window.ActionTemplates;
+    const list = actionTpl ? actionTpl.getList() : [];
+
+    let html = '<div style="max-height:70vh;overflow-y:auto;">';
+    html += '<h3 style="text-align:center;margin-bottom:14px;">📊 本校常模数据</h3>';
+
+    let hasData = false;
+    for (const a of list) {
+      const norm = allNorms[a.id];
+      if (!norm || !norm._count) continue;
+      hasData = true;
+      html += `<div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:12px;margin-bottom:10px;">`;
+      html += `<h4 style="margin-bottom:8px;">🏸 ${a.name} <span style="color:#4DD0E1;font-size:13px;">${norm._count}次</span></h4>`;
+      const tpl = actionTpl.get(a.id);
+      if (tpl) {
+        for (const [jn, jc] of Object.entries(tpl.joints)) {
+          const nd = norm[jn];
+          if (nd) {
+            const avg = nd.avg || '--';
+            const std = nd.std || '--';
+            html += `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.03);"><span style="color:#8892a8;">${jc.label}</span><span style="color:#4DD0E1;font-weight:600;">${avg}°±${std}°</span></div>`;
+          }
+        }
+      }
+      html += `</div>`;
+    }
+
+    if (!hasData) {
+      html += `<p style="text-align:center;color:#8892a8;padding:20px 0;">暂无常模数据。在采集模式(📊)下训练后会自动保存。</p>`;
+    }
+    html += `</div>`;
+    html += `<div style="display:flex;gap:10px;margin-top:14px;"><button class="modal-btn confirm" onclick="document.getElementById('normModal').style.display='none'" style="width:100%;">关闭</button></div>`;
+
+    el('normContent').innerHTML = html;
+    el('normModal').style.display = 'flex';
+  }
 };
 
 document.addEventListener('DOMContentLoaded', () => App.init());
