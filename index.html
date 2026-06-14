@@ -19,7 +19,8 @@
   <div class="perm-card">
     <div class="perm-icon">🏸</div>
     <button class="perm-btn" id="permBtn" onclick="App.requestCamera()">开启摄像头训练</button>
-    <p class="perm-desc">画面仅用于实时姿态识别，不上传不存储</p>
+    <p class="perm-desc" style="margin:10px 0 6px;font-size:13px;color:#8892a8;display:block;">画面仅用于实时姿态识别，不上传不存储</p>
+    <span style="font-size:13px;color:#556;cursor:pointer;text-decoration:underline;" onclick="App.enterDemo()">🎮 演示模式（免摄像头）</span>
   </div>
 </div>
 
@@ -163,6 +164,18 @@ const App = {
       try { if (typeof Pose !== 'undefined') PoseEngine.init(); }
       catch(e) { /* MediaPipe不可用时自动降级 */ }
     }, 100);
+  },
+
+  /** 直接进入演示模式 */
+  enterDemo() {
+    document.getElementById('permOverlay').style.display = 'none';
+    this.demoMode = true;
+    this.engine = PoseSimulator;
+    document.getElementById('demoBanner').style.display = 'block';
+    document.getElementById('btnModeToggle').textContent = '📷';
+    document.getElementById('flipBtn').style.display = 'none';
+    document.getElementById('statusText').textContent = '🎮 演示模式';
+    this.startTraining();
   },
 
   /** 用户点击后打开摄像头并直接开始训练 */
