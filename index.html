@@ -154,7 +154,7 @@ const App = {
   scores: [],
   angleSum: {},
   session: null,
-  _facingMode: 'environment',
+  _facingMode: 'user',  // 默认前置摄像头
   _collectMode: false,  // false=训练模式(有评分) true=采集模式(只录角度)
   _timer: null,
   _frameCount: 0,
@@ -194,7 +194,7 @@ const App = {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: 640, height: 480 },
+        video: { facingMode: 'user', width: 640, height: 480 },
         audio: false
       });
       this.video.srcObject = stream;
