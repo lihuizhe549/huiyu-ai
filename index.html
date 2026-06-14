@@ -277,6 +277,10 @@ const App = {
     this.angleSum = {};
     this.session = { startTime: Date.now(), validFrames: 0 };
 
+    // 立即清除上一轮的分数
+    el('scoreNum').textContent = '--';
+    el('hintText').textContent = '检测中...';
+
     const action = ActionTemplates.get(this.currentAction);
     if (!action) return;
 
