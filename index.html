@@ -332,45 +332,42 @@ const App = {
       }
     }
 
-    const ev = ActionTemplates.evaluateSession(this.currentAction, angles);
-    if (!ev) return;
-    this.scores.push(ev.score);
-    this.session.validFrames++;
+    const action = ActionTemplates.get(this.currentAction);
 
-    // 更新UI：底部面板的分数、提示、关节角度
     if (this._collectMode) {
-      // 采集模式：不显示分数
+      // 采集模式：不评分，只显示角度
       el('scoreNum').textContent = '--';
-      el('scoreNum').style.color = '#4DD0E1';
-      el('hintText').textContent = '📊 采集模式中，做完整挥拍动作';
+      el('hintText').textContent = '📊 采集模式 | 做完整挥拍后点结束';
       el('hintText').style.color = '#4DD0E1';
       el('hintRow').style.borderLeftColor = '#4DD0E1';
     } else {
-      // 训练模式：正常显示分数
+      // 训练模式：计算评分并显示
+      const ev = ActionTemplates.evaluateSession(this.currentAction, angles);
+      if (!ev) return;
+      this.scores.push(ev.score);
+      this.session.validFrames++;
+
       el('scoreNum').textContent = ev.score;
       el('scoreNum').style.color = ev.overallLevel === 'green' ? '#4CAF50' : (ev.overallLevel === 'red' ? '#F44336' : '#FF9800');
-    }
 
-    // 提示
-    const action = ActionTemplates.get(this.currentAction);
-    if (action && !this._collectMode) {
-      // 训练模式：显示偏差提示
-      let worst = null, worstDev = 0;
-      for (const [jn, jc] of Object.entries(action.joints)) {
-        const ad = angles[jn];
-        if (ad) {
-          const dev = Math.abs(ad.angle - jc.standard);
-          if (dev > jc.tolerance * 0.6 && dev > worstDev) { worst = { name: jc.label, angle: ad.angle, std: jc.standard, tol: jc.tolerance, diff: Math.round(ad.angle - jc.standard) }; worstDev = dev; }
+      if (action) {
+        let worst = null, worstDev = 0;
+        for (const [jn, jc] of Object.entries(action.joints)) {
+          const ad = angles[jn];
+          if (ad) {
+            const dev = Math.abs(ad.angle - jc.standard);
+            if (dev > jc.tolerance * 0.6 && dev > worstDev) { worst = { name: jc.label, angle: ad.angle, std: jc.standard, tol: jc.tolerance, diff: Math.round(ad.angle - jc.standard) }; worstDev = dev; }
+          }
         }
-      }
-      if (worst) {
-        el('hintText').textContent = `${worst.name}偏差${Math.abs(worst.diff)}° (${worst.angle}°, 标准${worst.std}°±${worst.tol}°)`;
-        el('hintText').style.color = worstDev > worst.tol ? '#F44336' : '#FF9800';
-        el('hintRow').style.borderLeftColor = worstDev > worst.tol ? '#F44336' : '#FF9800';
-      } else {
-        el('hintText').textContent = '动作规范，继续保持！';
-        el('hintText').style.color = '#4CAF50';
-        el('hintRow').style.borderLeftColor = '#4CAF50';
+        if (worst) {
+          el('hintText').textContent = `${worst.name}偏差${Math.abs(worst.diff)}° (${worst.angle}°, 标准${worst.std}°±${worst.tol}°)`;
+          el('hintText').style.color = worstDev > worst.tol ? '#F44336' : '#FF9800';
+          el('hintRow').style.borderLeftColor = worstDev > worst.tol ? '#F44336' : '#FF9800';
+        } else {
+          el('hintText').textContent = '动作规范，继续保持！';
+          el('hintText').style.color = '#4CAF50';
+          el('hintRow').style.borderLeftColor = '#4CAF50';
+        }
       }
     }
 
